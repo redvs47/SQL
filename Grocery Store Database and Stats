@@ -1,0 +1,10 @@
+CREATE TABLE store (id INTEGER PRIMARY KEY, items TEXT, quantity INTEGER, aislenumber INTEGER, aislename TEXT, price NUMERIC);
+
+INSERT INTO store VALUES(1,"Apples",25,2,"PRODUCE", 1.99);
+INSERT INTO store VALUES(2,"Bread",15,4,"BAKERY", 4.19);
+INSERT INTO store VALUES(3,"Frozen Pizza",50,10,"FROZEN", 6.49);
+INSERT INTO store VALUES(4, "Ground Beef", 31, 6, "BUTCHER", 7.99);
+INSERT INTO store VALUES(5, "Half & Half", 75, 1, "DAIRY", 2.50);
+
+SELECT * FROM store ORDER BY price;
+SELECT SUM(quantity) FROM store;
