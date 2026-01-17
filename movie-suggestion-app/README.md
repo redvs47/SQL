@@ -1,6 +1,6 @@
 # Movie Suggestion App
 
-A full-stack web application for groups to collaboratively suggest movies, randomly select one, plan watch dates, and share video reviews.
+A full-stack application for groups to collaboratively suggest movies, randomly select one, plan watch dates, and share video reviews. Available as both a web application and mobile apps for iOS and Android.
 
 ## Features
 
@@ -12,20 +12,35 @@ A full-stack web application for groups to collaboratively suggest movies, rando
 - **Video Reviews**: Upload video reviews (max 3 minutes) and share them with the group
 - **Real-time Updates**: See suggestions and reviews from all group members
 
+## Platforms
+
+This application is available on multiple platforms:
+
+- **Web Application** (`/frontend`): React-based web interface
+- **Mobile App** (`/mobile`): Flutter app for iOS and Android with camera integration
+- **Backend API** (`/backend`): Node.js/Express server used by all platforms
+
 ## Tech Stack
 
-### Backend
+### Backend (Shared by all platforms)
 - **Node.js** with **Express.js**
 - **SQLite** database
 - **JWT** authentication
 - **bcrypt** for password hashing
 - **Multer** for video file uploads
 
-### Frontend
+### Web Frontend
 - **React** 18
 - **React Router** for navigation
 - **Axios** for API requests
 - Modern, responsive UI with custom CSS
+
+### Mobile App (iOS & Android)
+- **Flutter** 3.0+
+- **Provider** for state management
+- **Camera** integration for video recording
+- **Video Player** for playback
+- Material Design 3 UI
 
 ## Database Schema
 
@@ -92,6 +107,34 @@ npm start
 
 The frontend will run on `http://localhost:3000`
 
+### Mobile App Setup
+
+1. Install Flutter (v3.0 or higher):
+   - Follow the [official Flutter installation guide](https://docs.flutter.dev/get-started/install)
+
+2. Navigate to the mobile directory:
+```bash
+cd mobile
+```
+
+3. Install dependencies:
+```bash
+flutter pub get
+```
+
+4. Configure the backend URL:
+   - Edit `lib/services/api_service.dart` and update `baseUrl`
+   - For Android emulator: `http://10.0.2.2:3001/api`
+   - For iOS simulator: `http://localhost:3001/api`
+   - For physical device: `http://YOUR_IP:3001/api`
+
+5. Run the app:
+```bash
+flutter run
+```
+
+For detailed mobile setup instructions, see `mobile/README.md`
+
 ## Usage Guide
 
 ### 1. Registration and Login
@@ -156,7 +199,7 @@ movie-suggestion-app/
 │   ├── package.json              # Backend dependencies
 │   ├── server.js                 # Main Express server
 │   └── movie_app.db             # SQLite database (created on first run)
-├── frontend/
+├── frontend/                     # Web application
 │   ├── public/
 │   │   └── index.html           # HTML template
 │   ├── src/
@@ -169,6 +212,17 @@ movie-suggestion-app/
 │   │   ├── index.js             # React entry point
 │   │   └── index.css            # Global styles
 │   └── package.json             # Frontend dependencies
+├── mobile/                       # iOS & Android app
+│   ├── lib/
+│   │   ├── models/              # Data models
+│   │   ├── screens/             # UI screens
+│   │   ├── services/            # API and auth services
+│   │   ├── widgets/             # Video recorder & player
+│   │   └── main.dart            # App entry point
+│   ├── android/                 # Android config
+│   ├── ios/                     # iOS config
+│   ├── pubspec.yaml             # Flutter dependencies
+│   └── README.md                # Mobile setup guide
 ├── uploads/
 │   └── videos/                  # Uploaded video reviews
 └── README.md                    # This file
