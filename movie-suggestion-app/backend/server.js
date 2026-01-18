@@ -57,6 +57,11 @@ function generateInviteCode() {
   return crypto.randomBytes(4).toString('hex').toUpperCase();
 }
 
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({ message: 'Movie Suggestion App API', version: '1.0.0' });
+});
+
 // ==================== AUTH ROUTES ====================
 
 app.post('/api/auth/register', async (req, res) => {
