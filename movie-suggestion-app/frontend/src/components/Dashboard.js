@@ -1,18 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import Notifications from './Notifications';
 
 function Dashboard({ user, onLogout }) {
   const [groups, setGroups] = useState([]);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [groupName, setGroupName] = useState('');
-  const [joinGroupId, setJoinGroupId] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const navigate = useNavigate();
 
   useEffect(() => {
     loadGroups();
+    loadUnreadCount();
+    // Poll for notifications every 10 seconds
+    const interval = setInterval(loadUnreadCount, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const loadGroups = async () => {
@@ -24,14 +31,23 @@ function Dashboard({ user, onLogout }) {
     }
   };
 
+  const loadUnreadCount = async () => {
+    try {
+      const response = await axios.get('/api/notifications/unread-count');
+      setUnreadCount(response.data.count);
+    } catch (err) {
+      console.error('Failed to load unread count');
+    }
+  };
+
   const handleCreateGroup = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
 
     try {
-      await axios.post('/api/groups', { name: groupName });
-      setSuccess('Group created successfully!');
+      const response = await axios.post('/api/groups', { name: groupName });
+      setSuccess(`Group created! Invite code: ${response.data.inviteCode}`);
       setGroupName('');
       setShowCreateGroup(false);
       loadGroups();
@@ -46,9 +62,9 @@ function Dashboard({ user, onLogout }) {
     setSuccess('');
 
     try {
-      await axios.post(`/api/groups/${joinGroupId}/join`);
-      setSuccess('Joined group successfully!');
-      setJoinGroupId('');
+      await axios.post(`/api/groups/join/${inviteCode.toUpperCase()}`);
+      setSuccess('Join request sent! Waiting for approval.');
+      setInviteCode('');
       loadGroups();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to join group');
@@ -78,10 +94,27 @@ function Dashboard({ user, onLogout }) {
         <div>
           <h2>Welcome, {user.username}!</h2>
         </div>
-        <div className="nav-links">
+        <div className="nav-links" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <div
+            className="notification-bell"
+            onClick={() => setShowNotifications(true)}
+          >
+            🔔
+            {unreadCount > 0 && (
+              <span className="notification-count">{unreadCount}</span>
+            )}
+          </div>
           <button onClick={onLogout} className="btn btn-secondary">Logout</button>
         </div>
       </div>
+
+      <Notifications
+        show={showNotifications}
+        onClose={() => {
+          setShowNotifications(false);
+          loadUnreadCount();
+        }}
+      />
 
       {error && <div className="error">{error}</div>}
       {success && <div className="success">{success}</div>}
@@ -127,12 +160,14 @@ function Dashboard({ user, onLogout }) {
         <div className="card" style={{ background: '#f8f9fa', marginBottom: '20px' }}>
           <form onSubmit={handleJoinGroup}>
             <div className="form-group">
-              <label>Join Existing Group (Enter Group ID)</label>
+              <label>Join Existing Group (Enter Invite Code)</label>
               <input
-                type="number"
-                value={joinGroupId}
-                onChange={(e) => setJoinGroupId(e.target.value)}
-                placeholder="Enter group ID to join"
+                type="text"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                placeholder="Enter 8-character invite code"
+                maxLength="8"
+                style={{ textTransform: 'uppercase' }}
                 required
               />
             </div>
@@ -154,7 +189,10 @@ function Dashboard({ user, onLogout }) {
               >
                 <h3>{group.name}</h3>
                 <p style={{ fontSize: '14px', color: '#666', marginTop: '10px' }}>
-                  Group ID: {group.id}
+                  Invite Code: <strong>{group.invite_code}</strong>
+                </p>
+                <p style={{ fontSize: '14px', color: '#888' }}>
+                  {group.member_count} member{group.member_count !== 1 ? 's' : ''}
                 </p>
                 <p style={{ fontSize: '14px', color: '#666' }}>
                   Click to start or continue session

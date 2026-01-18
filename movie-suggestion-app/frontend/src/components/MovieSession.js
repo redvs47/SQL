@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
@@ -6,21 +6,54 @@ function MovieSession({ user }) {
   const { sessionId } = useParams();
   const navigate = useNavigate();
 
+  // Session state
   const [session, setSession] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
   const [reviews, setReviews] = useState([]);
-  const [movieTitle, setMovieTitle] = useState('');
+  const [watchStatus, setWatchStatus] = useState([]);
+  const [chat, setChat] = useState([]);
+
+  // TMDB search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [selectedMovie, setSelectedMovie] = useState(null);
+  const [searching, setSearching] = useState(false);
+
+  // Form state
   const [watchDate, setWatchDate] = useState('');
   const [videoFile, setVideoFile] = useState(null);
+  const [chatMessage, setChatMessage] = useState('');
+  const [chatVideoFile, setChatVideoFile] = useState(null);
+
+  // UI state
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [activeTab, setActiveTab] = useState('session'); // session, chat, calendar
+
+  const chatEndRef = useRef(null);
+  const searchTimeoutRef = useRef(null);
 
   useEffect(() => {
     loadSession();
     loadSuggestions();
     loadReviews();
+    loadWatchStatus();
+    loadChat();
+    // Poll for updates every 5 seconds
+    const interval = setInterval(() => {
+      loadSession();
+      loadSuggestions();
+      loadChat();
+    }, 5000);
+    return () => clearInterval(interval);
   }, [sessionId]);
+
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chat]);
 
   const loadSession = async () => {
     try {
@@ -49,16 +82,77 @@ function MovieSession({ user }) {
     }
   };
 
+  const loadWatchStatus = async () => {
+    try {
+      const response = await axios.get(`/api/sessions/${sessionId}/watch-status`);
+      setWatchStatus(response.data);
+    } catch (err) {
+      console.error('Failed to load watch status');
+    }
+  };
+
+  const loadChat = async () => {
+    try {
+      const response = await axios.get(`/api/sessions/${sessionId}/chat`);
+      setChat(response.data);
+    } catch (err) {
+      console.error('Failed to load chat');
+    }
+  };
+
+  // TMDB Search
+  const handleSearch = async (query) => {
+    setSearchQuery(query);
+
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const response = await axios.get(`/api/tmdb/search?query=${encodeURIComponent(query)}`);
+        setSearchResults(response.data);
+      } catch (err) {
+        console.error('Search failed:', err);
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+  };
+
+  const selectMovie = (movie) => {
+    setSelectedMovie(movie);
+    setSearchQuery(movie.title);
+    setSearchResults([]);
+  };
+
   const handleSubmitSuggestion = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
 
+    if (!selectedMovie) {
+      setError('Please select a movie from the search results');
+      return;
+    }
+
     try {
-      await axios.post(`/api/sessions/${sessionId}/suggestions`, { movieTitle });
+      await axios.post(`/api/sessions/${sessionId}/suggestions`, {
+        tmdb_id: selectedMovie.tmdb_id,
+        movie_title: selectedMovie.title
+      });
       setSuccess('Movie suggestion submitted!');
-      setMovieTitle('');
+      setSearchQuery('');
+      setSelectedMovie(null);
       loadSuggestions();
+      loadSession();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to submit suggestion');
     }
@@ -72,22 +166,24 @@ function MovieSession({ user }) {
       const response = await axios.post(`/api/sessions/${sessionId}/select-movie`);
       setSuccess(`Selected: ${response.data.selectedMovie}`);
       loadSession();
+      loadSuggestions();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to select movie');
     }
   };
 
-  const handleSetWatchDate = async (e) => {
-    e.preventDefault();
+  const handleMarkWatched = async () => {
     setError('');
     setSuccess('');
 
     try {
-      await axios.post(`/api/sessions/${sessionId}/watch-date`, { watchDate });
-      setSuccess('Watch date set!');
+      await axios.post(`/api/sessions/${sessionId}/mark-watched`, { watchDate });
+      setSuccess('Marked as watched!');
+      setWatchDate('');
+      loadWatchStatus();
       loadSession();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to set watch date');
+      setError(err.response?.data?.error || 'Failed to mark as watched');
     }
   };
 
@@ -101,7 +197,6 @@ function MovieSession({ user }) {
       return;
     }
 
-    // Check video duration (client-side validation)
     const video = document.createElement('video');
     video.preload = 'metadata';
 
@@ -109,12 +204,11 @@ function MovieSession({ user }) {
       window.URL.revokeObjectURL(video.src);
       const duration = video.duration;
 
-      if (duration > 180) { // 3 minutes = 180 seconds
+      if (duration > 180) {
         setError('Video must be 3 minutes or less');
         return;
       }
 
-      // Upload the video
       const formData = new FormData();
       formData.append('video', videoFile);
 
@@ -130,6 +224,7 @@ function MovieSession({ user }) {
         setVideoFile(null);
         loadReviews();
         loadSession();
+        loadChat();
       } catch (err) {
         setError(err.response?.data?.error || 'Failed to upload review');
       } finally {
@@ -140,26 +235,49 @@ function MovieSession({ user }) {
     video.src = URL.createObjectURL(videoFile);
   };
 
-  const getStatusBadge = (status) => {
-    const statusClasses = {
-      collecting_suggestions: 'status-collecting',
-      movie_selected: 'status-selected',
-      watching: 'status-watching',
-      reviewed: 'status-reviewed',
-    };
+  const handleSendChat = async (e) => {
+    e.preventDefault();
+    setError('');
 
-    const statusLabels = {
-      collecting_suggestions: 'Collecting Suggestions',
-      movie_selected: 'Movie Selected',
-      watching: 'Watching',
-      reviewed: 'Reviewed',
-    };
+    if (!chatMessage.trim() && !chatVideoFile) {
+      return;
+    }
 
-    return (
-      <span className={`status-badge ${statusClasses[status]}`}>
-        {statusLabels[status]}
-      </span>
-    );
+    try {
+      if (chatVideoFile) {
+        // Upload video message
+        const formData = new FormData();
+        formData.append('video', chatVideoFile);
+        if (chatMessage.trim()) {
+          formData.append('message', chatMessage);
+        }
+        await axios.post(`/api/sessions/${sessionId}/chat`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        setChatVideoFile(null);
+      } else {
+        // Send text message
+        await axios.post(`/api/sessions/${sessionId}/chat`, {
+          message: chatMessage
+        });
+      }
+      setChatMessage('');
+      loadChat();
+    } catch (err) {
+      if (err.response?.status === 403) {
+        setError('You must submit a review before chatting');
+      } else {
+        setError(err.response?.data?.error || 'Failed to send message');
+      }
+    }
+  };
+
+  const getCalendarUrls = () => {
+    return {
+      google: `http://localhost:3001/api/sessions/${sessionId}/calendar/google-url`,
+      apple: `http://localhost:3001/api/sessions/${sessionId}/calendar/apple-url`,
+      ics: `http://localhost:3001/api/sessions/${sessionId}/calendar.ics`
+    };
   };
 
   if (!session) {
@@ -167,7 +285,10 @@ function MovieSession({ user }) {
   }
 
   const userHasSuggested = suggestions.some(s => s.user_id === user.id);
+  const userHasWatched = watchStatus.some(s => s.user_id === user.id);
+  const userHasReviewed = reviews.some(r => r.user_id === user.id);
   const canSelectMovie = suggestions.length >= 2 && session.status === 'collecting_suggestions';
+  const isLeader = session.created_by === user.id;
 
   return (
     <div className="container">
@@ -185,147 +306,304 @@ function MovieSession({ user }) {
       {error && <div className="error">{error}</div>}
       {success && <div className="success">{success}</div>}
 
-      <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2>Session Status</h2>
-          {getStatusBadge(session.status)}
-        </div>
-
-        {session.selected_movie_title && (
-          <div style={{ marginTop: '20px', padding: '20px', background: '#e3f2fd', borderRadius: '8px' }}>
-            <h3>Selected Movie: {session.selected_movie_title}</h3>
-            {session.watch_date && (
-              <p style={{ marginTop: '10px' }}>Watch Date: {session.watch_date}</p>
-            )}
-          </div>
-        )}
+      {/* Tab Navigation */}
+      <div className="tabs">
+        <button
+          className={`tab ${activeTab === 'session' ? 'active' : ''}`}
+          onClick={() => setActiveTab('session')}
+        >
+          Session
+        </button>
+        <button
+          className={`tab ${activeTab === 'chat' ? 'active' : ''}`}
+          onClick={() => setActiveTab('chat')}
+        >
+          Chat {!userHasReviewed && <span style={{fontSize: '10px'}}>(Review required)</span>}
+        </button>
+        <button
+          className={`tab ${activeTab === 'calendar' ? 'active' : ''}`}
+          onClick={() => setActiveTab('calendar')}
+        >
+          Calendar
+        </button>
       </div>
 
-      {/* Step 1: Submit Movie Suggestions */}
-      {session.status === 'collecting_suggestions' && (
-        <div className="card">
-          <h2>Submit Your Movie Suggestion</h2>
-          {!userHasSuggested ? (
-            <form onSubmit={handleSubmitSuggestion}>
-              <div className="form-group">
-                <label>Movie Title</label>
-                <input
-                  type="text"
-                  value={movieTitle}
-                  onChange={(e) => setMovieTitle(e.target.value)}
-                  placeholder="Enter a movie title"
-                  required
-                />
+      {/* Session Tab */}
+      {activeTab === 'session' && (
+        <>
+          <div className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2>Session Status</h2>
+              <span className={`status-badge status-${session.status}`}>
+                {session.status.replace(/_/g, ' ').toUpperCase()}
+              </span>
+            </div>
+
+            {session.selected_movie_title && (
+              <div style={{ marginTop: '20px', padding: '20px', background: '#e3f2fd', borderRadius: '8px' }}>
+                <h3>Selected Movie: {session.selected_movie_title}</h3>
+                {session.selected_movie_tmdb_id && (
+                  <p style={{ marginTop: '5px', fontSize: '14px' }}>TMDB ID: {session.selected_movie_tmdb_id}</p>
+                )}
+                <div style={{ marginTop: '15px' }}>
+                  <strong>Watch Status:</strong>
+                  <p>{watchStatus.length} / {session.member_count} members have watched</p>
+                </div>
               </div>
-              <button type="submit" className="btn btn-primary">Submit Suggestion</button>
-            </form>
-          ) : (
-            <div className="success">You have already submitted a suggestion!</div>
-          )}
+            )}
+          </div>
 
-          <h3 style={{ marginTop: '30px' }}>Current Suggestions ({suggestions.length})</h3>
-          {suggestions.length === 0 ? (
-            <p style={{ color: '#666' }}>No suggestions yet. Be the first!</p>
-          ) : (
-            <ul className="suggestion-list">
-              {suggestions.map((suggestion) => (
-                <li key={suggestion.id} className="suggestion-item">
-                  <div>
-                    <strong>{suggestion.movie_title}</strong>
-                    <span style={{ marginLeft: '10px', color: '#666' }}>
-                      by {suggestion.username}
-                    </span>
+          {/* Step 1: Collect Suggestions */}
+          {session.status === 'collecting_suggestions' && (
+            <div className="card">
+              <h2>Submit Your Movie Suggestion</h2>
+              {!userHasSuggested ? (
+                <form onSubmit={handleSubmitSuggestion}>
+                  <div className="form-group">
+                    <label>Search for a Movie</label>
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => handleSearch(e.target.value)}
+                      placeholder="Type to search movies..."
+                      autoComplete="off"
+                    />
+                    {searching && <p style={{ fontSize: '14px', color: '#666' }}>Searching...</p>}
+                    {searchResults.length > 0 && (
+                      <div className="search-results">
+                        {searchResults.map((movie) => (
+                          <div
+                            key={movie.tmdb_id}
+                            className="search-result-item"
+                            onClick={() => selectMovie(movie)}
+                          >
+                            {movie.poster_url && (
+                              <img src={movie.poster_url} alt={movie.title} style={{ width: '50px', marginRight: '10px' }} />
+                            )}
+                            <div>
+                              <strong>{movie.title}</strong> ({movie.release_year})
+                              <p style={{ fontSize: '12px', color: '#666' }}>⭐ {movie.vote_average?.toFixed(1)}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {selectedMovie && (
+                      <div style={{ marginTop: '10px', padding: '10px', background: '#e8f5e9', borderRadius: '4px' }}>
+                        <strong>Selected:</strong> {selectedMovie.title} ({selectedMovie.release_year})
+                      </div>
+                    )}
                   </div>
-                </li>
-              ))}
-            </ul>
-          )}
+                  <button type="submit" className="btn btn-primary" disabled={!selectedMovie}>
+                    Submit Suggestion
+                  </button>
+                </form>
+              ) : (
+                <div className="success">You have already submitted a suggestion!</div>
+              )}
 
-          {canSelectMovie && (
-            <div style={{ marginTop: '20px' }}>
-              <button onClick={handleSelectMovie} className="btn btn-success">
-                Randomly Select Movie
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+              <h3 style={{ marginTop: '30px' }}>Current Suggestions ({suggestions.length})</h3>
+              {suggestions.length === 0 ? (
+                <p style={{ color: '#666' }}>No suggestions yet. Be the first!</p>
+              ) : (
+                <ul className="suggestion-list">
+                  {suggestions.map((suggestion) => (
+                    <li key={suggestion.id} className="suggestion-item">
+                      <div>
+                        <strong>{suggestion.movie_title}</strong>
+                        <span style={{ marginLeft: '10px', color: '#666' }}>
+                          by {suggestion.username}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
 
-      {/* Step 2: Set Watch Date */}
-      {session.status === 'movie_selected' && !session.watch_date && (
-        <div className="card">
-          <h2>Set Watch Date</h2>
-          <p>The movie "{session.selected_movie_title}" has been selected!</p>
-          <form onSubmit={handleSetWatchDate}>
-            <div className="form-group">
-              <label>When will you watch this movie?</label>
-              <input
-                type="date"
-                value={watchDate}
-                onChange={(e) => setWatchDate(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-                required
-              />
-            </div>
-            <button type="submit" className="btn btn-primary">Set Watch Date</button>
-          </form>
-        </div>
-      )}
-
-      {/* Step 3: Submit Video Review */}
-      {(session.status === 'watching' || session.status === 'reviewed') && (
-        <div className="card">
-          <h2>Submit Your Video Review</h2>
-          <p>Have you finished watching "{session.selected_movie_title}"?</p>
-          <p style={{ marginBottom: '20px', color: '#666' }}>
-            Record and upload a video review (maximum 3 minutes)
-          </p>
-
-          <form onSubmit={handleVideoUpload}>
-            <div className="form-group">
-              <label>Upload Video Review</label>
-              <input
-                type="file"
-                accept="video/*"
-                onChange={(e) => setVideoFile(e.target.files[0])}
-                required
-              />
-              {videoFile && (
-                <p style={{ marginTop: '10px', fontSize: '14px', color: '#666' }}>
-                  Selected: {videoFile.name} ({(videoFile.size / 1024 / 1024).toFixed(2)} MB)
+              {canSelectMovie && isLeader && (
+                <div style={{ marginTop: '20px' }}>
+                  <button onClick={handleSelectMovie} className="btn btn-success">
+                    Randomly Select Movie
+                  </button>
+                </div>
+              )}
+              {canSelectMovie && !isLeader && (
+                <p style={{ marginTop: '20px', color: '#666' }}>
+                  Waiting for group leader to select the movie...
                 </p>
               )}
             </div>
-            <button
-              type="submit"
-              className="btn btn-success"
-              disabled={uploading}
-            >
-              {uploading ? 'Uploading...' : 'Upload Review'}
-            </button>
-          </form>
+          )}
 
-          {/* Show Reviews */}
-          <h3 style={{ marginTop: '40px' }}>Reviews from Group Members</h3>
-          {reviews.length === 0 ? (
-            <p style={{ color: '#666' }}>No reviews yet. Be the first to share!</p>
-          ) : (
-            <div className="video-grid">
-              {reviews.map((review) => (
-                <div key={review.id} className="video-card">
-                  <video controls>
-                    <source src={`http://localhost:3001${review.video_path}`} type="video/mp4" />
-                    Your browser does not support the video tag.
-                  </video>
-                  <div className="video-card-info">
-                    <strong>{review.username}</strong>
-                    <p style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>
-                      {new Date(review.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-              ))}
+          {/* Step 2: Mark as Watched */}
+          {session.selected_movie_title && !userHasWatched && (
+            <div className="card">
+              <h2>Mark as Watched</h2>
+              <p>Have you watched "{session.selected_movie_title}"?</p>
+              <div className="form-group">
+                <label>When did you watch it?</label>
+                <input
+                  type="date"
+                  value={watchDate}
+                  onChange={(e) => setWatchDate(e.target.value)}
+                  max={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+              <button onClick={handleMarkWatched} className="btn btn-primary">
+                Mark as Watched
+              </button>
             </div>
+          )}
+
+          {/* Step 3: Submit Review */}
+          {userHasWatched && (
+            <div className="card">
+              <h2>Submit Your Video Review</h2>
+              <p>Share your thoughts on "{session.selected_movie_title}"</p>
+              <p style={{ marginBottom: '20px', color: '#666' }}>
+                Record and upload a video review (maximum 3 minutes)
+              </p>
+
+              <form onSubmit={handleVideoUpload}>
+                <div className="form-group">
+                  <label>Upload Video Review</label>
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={(e) => setVideoFile(e.target.files[0])}
+                  />
+                  {videoFile && (
+                    <p style={{ marginTop: '10px', fontSize: '14px', color: '#666' }}>
+                      Selected: {videoFile.name} ({(videoFile.size / 1024 / 1024).toFixed(2)} MB)
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="submit"
+                  className="btn btn-success"
+                  disabled={uploading || !videoFile}
+                >
+                  {uploading ? 'Uploading...' : 'Upload Review'}
+                </button>
+              </form>
+
+              <h3 style={{ marginTop: '40px' }}>Reviews from Group Members</h3>
+              {reviews.length === 0 ? (
+                <p style={{ color: '#666' }}>No reviews yet. Be the first to share!</p>
+              ) : (
+                <div className="video-grid">
+                  {reviews.map((review) => (
+                    <div key={review.id} className="video-card">
+                      <video controls>
+                        <source src={`http://localhost:3001${review.video_path}`} type="video/mp4" />
+                        Your browser does not support the video tag.
+                      </video>
+                      <div className="video-card-info">
+                        <strong>{review.username}</strong>
+                        <p style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>
+                          {new Date(review.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Chat Tab */}
+      {activeTab === 'chat' && (
+        <div className="card">
+          <h2>Group Chat</h2>
+          {!userHasReviewed ? (
+            <div className="error">You must submit a video review before accessing chat</div>
+          ) : (
+            <>
+              <div className="chat-container">
+                {chat.length === 0 ? (
+                  <p style={{ textAlign: 'center', color: '#666' }}>No messages yet</p>
+                ) : (
+                  chat.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`chat-message ${msg.user_id === user.id ? 'own' : 'other'}`}
+                    >
+                      <div className="chat-user">{msg.username}</div>
+                      {msg.message && <div className="chat-text">{msg.message}</div>}
+                      {msg.video_path && (
+                        <video controls style={{ maxWidth: '300px', borderRadius: '8px' }}>
+                          <source src={`http://localhost:3001${msg.video_path}`} type="video/mp4" />
+                        </video>
+                      )}
+                      <div className="chat-time">
+                        {new Date(msg.created_at).toLocaleString()}
+                      </div>
+                    </div>
+                  ))
+                )}
+                <div ref={chatEndRef} />
+              </div>
+
+              <form onSubmit={handleSendChat} className="chat-input-form">
+                <div className="form-group">
+                  <input
+                    type="text"
+                    value={chatMessage}
+                    onChange={(e) => setChatMessage(e.target.value)}
+                    placeholder="Type a message..."
+                  />
+                </div>
+                <div className="form-group">
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={(e) => setChatVideoFile(e.target.files[0])}
+                  />
+                </div>
+                <button type="submit" className="btn btn-primary">
+                  Send
+                </button>
+              </form>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Calendar Tab */}
+      {activeTab === 'calendar' && (
+        <div className="card">
+          <h2>Add to Calendar</h2>
+          {session.selected_movie_title ? (
+            <>
+              <p>Add "{session.selected_movie_title}" to your calendar</p>
+              <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <a
+                  href={getCalendarUrls().google}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-primary"
+                >
+                  📅 Add to Google Calendar
+                </a>
+                <a
+                  href={getCalendarUrls().apple}
+                  className="btn btn-primary"
+                >
+                  📅 Add to Apple Calendar
+                </a>
+                <a
+                  href={getCalendarUrls().ics}
+                  download
+                  className="btn btn-secondary"
+                >
+                  📥 Download ICS File
+                </a>
+              </div>
+            </>
+          ) : (
+            <p style={{ color: '#666' }}>A movie must be selected first</p>
           )}
         </div>
       )}
