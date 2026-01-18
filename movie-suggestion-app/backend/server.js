@@ -11,6 +11,7 @@ const db = require('./database');
 const { authenticateToken } = require('./middleware/auth');
 const tmdbService = require('./services/tmdbService');
 const notificationService = require('./services/notificationService');
+const calendarService = require('./services/calendarService');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -1298,6 +1299,87 @@ app.post('/api/sessions/:sessionId/close', authenticateToken, async (req, res) =
       });
     });
   });
+});
+
+// ==================== CALENDAR INTEGRATION ROUTES ====================
+
+// Download ICS file for calendar import
+app.get('/api/sessions/:sessionId/calendar.ics', authenticateToken, async (req, res) => {
+  const { sessionId } = req.params;
+  const userId = req.user.id;
+
+  try {
+    // Get session
+    const session = await new Promise((resolve, reject) => {
+      db.get('SELECT * FROM movie_sessions WHERE id = ?', [sessionId], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    // Prepare event data
+    const eventData = await calendarService.prepareEventData(session, userId);
+
+    // Generate ICS content
+    const icsContent = calendarService.generateICS(eventData);
+
+    // Set headers for file download
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="watch-${eventData.movieTitle.replace(/[^a-z0-9]/gi, '-')}.ics"`);
+
+    res.send(icsContent);
+  } catch (error) {
+    console.error('Error generating ICS:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get Google Calendar URL
+app.get('/api/sessions/:sessionId/calendar/google-url', authenticateToken, async (req, res) => {
+  const { sessionId } = req.params;
+  const userId = req.user.id;
+
+  try {
+    // Get session
+    const session = await new Promise((resolve, reject) => {
+      db.get('SELECT * FROM movie_sessions WHERE id = ?', [sessionId], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    // Prepare event data
+    const eventData = await calendarService.prepareEventData(session, userId);
+
+    // Generate Google Calendar URL
+    const googleUrl = calendarService.generateGoogleCalendarUrl(eventData);
+
+    res.json({ url: googleUrl });
+  } catch (error) {
+    console.error('Error generating Google Calendar URL:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get Apple Calendar webcal URL
+app.get('/api/sessions/:sessionId/calendar/apple-url', authenticateToken, async (req, res) => {
+  const { sessionId } = req.params;
+
+  try {
+    const appleUrl = calendarService.generateAppleCalendarUrl(sessionId);
+    res.json({ url: appleUrl });
+  } catch (error) {
+    console.error('Error generating Apple Calendar URL:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // ==================== START SERVER ====================
