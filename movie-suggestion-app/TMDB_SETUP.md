@@ -41,17 +41,19 @@ Fill in the required information:
 
 Click "Submit" when done.
 
-## Step 5: Get Your API Key
+## Step 5: Get Your API Credentials
 
 After submission, you'll immediately see your API credentials:
 
-- **API Key (v3 auth)**: This is what you need for this app
-- **API Read Access Token (v4 auth)**: Not needed for this app
+- **API Key (v3 auth)**: The old 32-character key (deprecated for most endpoints)
+- **API Read Access Token (v4 auth)**: **This is what you need for this app**
 
-Copy the **API Key (v3 auth)** - it will look something like:
+Copy the **API Read Access Token (v4 auth)** - it will look something like:
 ```
-a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJhMWIyYzNkNGU1ZjZnN2g4aTlqMGsxbDJtM240bzVwNiIsInN1YiI6IjYxMjM0NTY3ODkwYWJjZGVmMTIzNDU2NyIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.1A2B3C4D5E6F7G8H9I0J1K2L3M4N5O6P7Q8R9S0T1U2
 ```
+
+**Important**: The token starts with "eyJ" and is much longer than the old 32-character API key.
 
 ## Step 6: Add API Key to Your App
 
@@ -69,10 +71,12 @@ a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
    TMDB_API_KEY=your-tmdb-api-key-here
    ```
 
-4. Replace `your-tmdb-api-key-here` with your actual API key:
+4. Replace `your-tmdb-api-key-here` with your **Read Access Token** (not the old API key):
    ```
-   TMDB_API_KEY=a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+   TMDB_API_KEY=eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJhMWIyYzNkNGU1ZjZnN2g4aTlqMGsxbDJtM240bzVwNiIsInN1YiI6IjYxMjM0NTY3ODkwYWJjZGVmMTIzNDU2NyIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.1A2B3C4D5E6F7G8H9I0J1K2L3M4N5O6P7Q8R9S0T1U2
    ```
+
+   **Note**: Make sure to use the long "Read Access Token" that starts with "eyJ", not the short 32-character API key.
 
 5. Save the file
 

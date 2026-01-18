@@ -15,8 +15,11 @@ class TMDBService {
 
     try {
       const response = await axios.get(`${this.baseURL}/search/movie`, {
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'accept': 'application/json'
+        },
         params: {
-          api_key: this.apiKey,
           query: query,
           include_adult: false,
           language: 'en-US',
@@ -49,8 +52,11 @@ class TMDBService {
 
     try {
       const response = await axios.get(`${this.baseURL}/movie/${tmdbId}`, {
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'accept': 'application/json'
+        },
         params: {
-          api_key: this.apiKey,
           language: 'en-US',
           append_to_response: 'credits,videos,keywords'
         }
@@ -110,8 +116,9 @@ class TMDBService {
 
     try {
       const response = await axios.get(`${this.baseURL}/movie/${tmdbId}/watch/providers`, {
-        params: {
-          api_key: this.apiKey
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'accept': 'application/json'
         }
       });
 
