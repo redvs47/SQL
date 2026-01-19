@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
 import '../models/movie_session.dart';
@@ -701,11 +702,134 @@ class _MovieSessionScreenState extends State<MovieSessionScreen> {
                                     ],
                                   ),
                                 )),
+
+                          // Calendar Export Section
+                          if (_session?.selectedMovieTitle != null) ...[
+                            const SizedBox(height: 24),
+                            Text(
+                              'Add to Calendar',
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                            const SizedBox(height: 8),
+                            Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    Text(
+                                      'Export your watch party to your calendar',
+                                      style: TextStyle(color: Colors.grey[600]),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    ElevatedButton.icon(
+                                      onPressed: () => _exportToGoogleCalendar(),
+                                      icon: const Icon(Icons.calendar_today),
+                                      label: const Text('Google Calendar'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.blue,
+                                        foregroundColor: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    ElevatedButton.icon(
+                                      onPressed: () => _exportToAppleCalendar(),
+                                      icon: const Icon(Icons.apple),
+                                      label: const Text('Apple Calendar'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.black87,
+                                        foregroundColor: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    ElevatedButton.icon(
+                                      onPressed: () => _downloadICS(),
+                                      icon: const Icon(Icons.download),
+                                      label: const Text('Download ICS File'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.green,
+                                        foregroundColor: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ],
                     ),
                   ),
                 ),
     );
+  }
+
+  Future<void> _exportToGoogleCalendar() async {
+    try {
+      final authService = context.read<AuthService>();
+      final apiService = context.read<ApiService>();
+
+      if (authService.token == null) return;
+
+      final url = await apiService.getGoogleCalendarUrl(authService.token!, widget.sessionId);
+
+      if (await canLaunchUrl(Uri.parse(url))) {
+        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      } else {
+        throw Exception('Could not launch calendar URL');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to export: ${e.toString().replaceAll('Exception: ', '')}')),
+        );
+      }
+    }
+  }
+
+  Future<void> _exportToAppleCalendar() async {
+    try {
+      final authService = context.read<AuthService>();
+      final apiService = context.read<ApiService>();
+
+      if (authService.token == null) return;
+
+      final url = await apiService.getAppleCalendarUrl(authService.token!, widget.sessionId);
+
+      if (await canLaunchUrl(Uri.parse(url))) {
+        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      } else {
+        throw Exception('Could not launch calendar URL');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to export: ${e.toString().replaceAll('Exception: ', '')}')),
+        );
+      }
+    }
+  }
+
+  Future<void> _downloadICS() async {
+    try {
+      final authService = context.read<AuthService>();
+      final apiService = context.read<ApiService>();
+
+      if (authService.token == null) return;
+
+      final url = await apiService.getICSDownloadUrl(authService.token!, widget.sessionId);
+
+      if (await canLaunchUrl(Uri.parse(url))) {
+        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      } else {
+        throw Exception('Could not launch download URL');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to download: ${e.toString().replaceAll('Exception: ', '')}')),
+        );
+      }
+    }
   }
 }
