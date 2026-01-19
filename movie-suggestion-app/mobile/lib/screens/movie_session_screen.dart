@@ -8,6 +8,7 @@ import '../models/movie_suggestion.dart';
 import '../models/video_review.dart';
 import '../widgets/video_recorder_widget.dart';
 import '../widgets/video_player_widget.dart';
+import 'chat_screen.dart';
 
 class MovieSessionScreen extends StatefulWidget {
   final int sessionId;
@@ -287,6 +288,20 @@ class _MovieSessionScreenState extends State<MovieSessionScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Movie Session'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.chat),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ChatScreen(sessionId: widget.sessionId),
+                ),
+              );
+            },
+            tooltip: 'Group Chat',
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
