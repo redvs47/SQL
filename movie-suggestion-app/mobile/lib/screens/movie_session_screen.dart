@@ -28,6 +28,11 @@ class _MovieSessionScreenState extends State<MovieSessionScreen> {
   final _movieTitleController = TextEditingController();
   DateTime? _selectedDate;
 
+  // TMDB search state
+  List<Map<String, dynamic>> _movieSearchResults = [];
+  bool _isSearching = false;
+  Map<String, dynamic>? _selectedTmdbMovie;
+
   @override
   void initState() {
     super.initState();
@@ -111,20 +116,76 @@ class _MovieSessionScreenState extends State<MovieSessionScreen> {
     }
   }
 
+  Future<void> _searchMovies(String query) async {
+    if (query.length < 2) {
+      setState(() {
+        _movieSearchResults = [];
+        _isSearching = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isSearching = true;
+    });
+
+    try {
+      final apiService = context.read<ApiService>();
+      final results = await apiService.searchMovies(query);
+
+      setState(() {
+        _movieSearchResults = results;
+        _isSearching = false;
+      });
+    } catch (e) {
+      setState(() {
+        _movieSearchResults = [];
+        _isSearching = false;
+      });
+    }
+  }
+
+  void _selectTmdbMovie(Map<String, dynamic> movie) {
+    setState(() {
+      _selectedTmdbMovie = movie;
+      _movieTitleController.text = movie['title'];
+      _movieSearchResults = [];
+    });
+  }
+
   Future<void> _submitSuggestion() async {
-    if (_movieTitleController.text.isEmpty) return;
+    if (_selectedTmdbMovie == null && _movieTitleController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select or enter a movie')),
+      );
+      return;
+    }
 
     try {
       final authService = context.read<AuthService>();
       final apiService = context.read<ApiService>();
 
-      await apiService.submitSuggestion(
-        authService.token!,
-        widget.sessionId,
-        _movieTitleController.text,
-      );
+      // If TMDB movie selected, use tmdb_id
+      if (_selectedTmdbMovie != null) {
+        await apiService.submitSuggestion(
+          authService.token!,
+          widget.sessionId,
+          _selectedTmdbMovie!['title'],
+        );
+      } else {
+        // Manual entry fallback
+        await apiService.submitSuggestion(
+          authService.token!,
+          widget.sessionId,
+          _movieTitleController.text,
+        );
+      }
 
       _movieTitleController.clear();
+      setState(() {
+        _selectedTmdbMovie = null;
+        _movieSearchResults = [];
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -330,13 +391,110 @@ class _MovieSessionScreenState extends State<MovieSessionScreen> {
                                   ),
                                   const SizedBox(height: 16),
                                   if (!userHasSuggested)
-                                    TextField(
-                                      controller: _movieTitleController,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Movie Title',
-                                        hintText: 'Enter a movie title',
-                                      ),
-                                      onSubmitted: (_) => _submitSuggestion(),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        TextField(
+                                          controller: _movieTitleController,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Search Movie',
+                                            hintText: 'Type to search...',
+                                            prefixIcon: Icon(Icons.search),
+                                          ),
+                                          onChanged: _searchMovies,
+                                        ),
+                                        if (_isSearching)
+                                          const Padding(
+                                            padding: EdgeInsets.all(8.0),
+                                            child: Center(child: CircularProgressIndicator()),
+                                          ),
+                                        if (_selectedTmdbMovie != null)
+                                          Container(
+                                            margin: const EdgeInsets.only(top: 8),
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: Colors.green.shade50,
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(color: Colors.green.shade200),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                if (_selectedTmdbMovie!['poster_url'] != null)
+                                                  ClipRRect(
+                                                    borderRadius: BorderRadius.circular(4),
+                                                    child: Image.network(
+                                                      _selectedTmdbMovie!['poster_url'],
+                                                      width: 40,
+                                                      height: 60,
+                                                      fit: BoxFit.cover,
+                                                      errorBuilder: (context, error, stackTrace) =>
+                                                          const Icon(Icons.movie, size: 40),
+                                                    ),
+                                                  ),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text(
+                                                        _selectedTmdbMovie!['title'],
+                                                        style: const TextStyle(fontWeight: FontWeight.bold),
+                                                      ),
+                                                      Text(
+                                                        '${_selectedTmdbMovie!['release_year']} • ⭐ ${_selectedTmdbMovie!['vote_average']?.toStringAsFixed(1) ?? 'N/A'}',
+                                                        style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                IconButton(
+                                                  icon: const Icon(Icons.close),
+                                                  onPressed: () {
+                                                    setState(() {
+                                                      _selectedTmdbMovie = null;
+                                                      _movieTitleController.clear();
+                                                    });
+                                                  },
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        if (_movieSearchResults.isNotEmpty)
+                                          Container(
+                                            margin: const EdgeInsets.only(top: 8),
+                                            constraints: const BoxConstraints(maxHeight: 300),
+                                            decoration: BoxDecoration(
+                                              border: Border.all(color: Colors.grey.shade300),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: ListView.builder(
+                                              shrinkWrap: true,
+                                              itemCount: _movieSearchResults.length,
+                                              itemBuilder: (context, index) {
+                                                final movie = _movieSearchResults[index];
+                                                return ListTile(
+                                                  leading: movie['poster_url'] != null
+                                                      ? ClipRRect(
+                                                          borderRadius: BorderRadius.circular(4),
+                                                          child: Image.network(
+                                                            movie['poster_url'],
+                                                            width: 40,
+                                                            fit: BoxFit.cover,
+                                                            errorBuilder: (context, error, stackTrace) =>
+                                                                const Icon(Icons.movie),
+                                                          ),
+                                                        )
+                                                      : const Icon(Icons.movie),
+                                                  title: Text(movie['title']),
+                                                  subtitle: Text(
+                                                    '${movie['release_year']} • ⭐ ${movie['vote_average']?.toStringAsFixed(1) ?? 'N/A'}',
+                                                  ),
+                                                  onTap: () => _selectTmdbMovie(movie),
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                      ],
                                     )
                                   else
                                     Container(

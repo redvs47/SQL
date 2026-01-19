@@ -258,4 +258,161 @@ class ApiService {
       throw Exception(error['error'] ?? 'Failed to upload review');
     }
   }
+
+  // TMDB
+  Future<List<Map<String, dynamic>>> searchMovies(String query) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/tmdb/search?query=${Uri.encodeComponent(query)}'),
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.cast<Map<String, dynamic>>();
+    } else {
+      throw Exception('Failed to search movies');
+    }
+  }
+
+  Future<Map<String, dynamic>> getMovieDetails(int tmdbId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/tmdb/movie/$tmdbId'),
+    );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Failed to get movie details');
+    }
+  }
+
+  // Notifications
+  Future<List<Map<String, dynamic>>> getNotifications(String token) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/notifications'),
+      headers: _headers(token),
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.cast<Map<String, dynamic>>();
+    } else {
+      throw Exception('Failed to load notifications');
+    }
+  }
+
+  Future<int> getUnreadCount(String token) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/notifications/unread-count'),
+      headers: _headers(token),
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      return data['count'];
+    } else {
+      throw Exception('Failed to get unread count');
+    }
+  }
+
+  Future<void> markNotificationRead(String token, int notificationId) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/notifications/$notificationId/read'),
+      headers: _headers(token),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to mark notification as read');
+    }
+  }
+
+  Future<void> markAllNotificationsRead(String token) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/notifications/read-all'),
+      headers: _headers(token),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to mark all as read');
+    }
+  }
+
+  // Chat
+  Future<List<Map<String, dynamic>>> getChatMessages(
+    String token,
+    int sessionId,
+  ) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/sessions/$sessionId/chat'),
+      headers: _headers(token),
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.cast<Map<String, dynamic>>();
+    } else {
+      throw Exception('Failed to load chat messages');
+    }
+  }
+
+  Future<void> sendChatMessage(
+    String token,
+    int sessionId,
+    String message,
+  ) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/sessions/$sessionId/chat'),
+      headers: _headers(token),
+      body: json.encode({'message': message}),
+    );
+
+    if (response.statusCode != 201) {
+      final error = json.decode(response.body);
+      throw Exception(error['error'] ?? 'Failed to send message');
+    }
+  }
+
+  Future<void> sendChatVideo(
+    String token,
+    int sessionId,
+    File videoFile, {
+    String? message,
+  }) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/sessions/$sessionId/chat'),
+    );
+
+    request.headers['Authorization'] = 'Bearer $token';
+    request.files.add(
+      await http.MultipartFile.fromPath('video', videoFile.path),
+    );
+    if (message != null && message.isNotEmpty) {
+      request.fields['message'] = message;
+    }
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+
+    if (response.statusCode != 201) {
+      final error = json.decode(response.body);
+      throw Exception(error['error'] ?? 'Failed to send video message');
+    }
+  }
+
+  // Calendar
+  String getGoogleCalendarUrl(int sessionId) {
+    // Remove /api from baseUrl for full URL
+    final base = baseUrl.replaceAll('/api', '');
+    return '$base/api/sessions/$sessionId/calendar/google-url';
+  }
+
+  String getAppleCalendarUrl(int sessionId) {
+    final base = baseUrl.replaceAll('/api', '');
+    return '$base/api/sessions/$sessionId/calendar/apple-url';
+  }
+
+  String getIcsUrl(int sessionId) {
+    final base = baseUrl.replaceAll('/api', '');
+    return '$base/api/sessions/$sessionId/calendar.ics';
+  }
 }
