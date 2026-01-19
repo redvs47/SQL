@@ -766,12 +766,9 @@ class _MovieSessionScreenState extends State<MovieSessionScreen> {
 
   Future<void> _exportToGoogleCalendar() async {
     try {
-      final authService = context.read<AuthService>();
       final apiService = context.read<ApiService>();
 
-      if (authService.token == null) return;
-
-      final url = await apiService.getGoogleCalendarUrl(authService.token!, widget.sessionId);
+      final url = apiService.getGoogleCalendarUrl(widget.sessionId);
 
       if (await canLaunchUrl(Uri.parse(url))) {
         await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
@@ -789,12 +786,9 @@ class _MovieSessionScreenState extends State<MovieSessionScreen> {
 
   Future<void> _exportToAppleCalendar() async {
     try {
-      final authService = context.read<AuthService>();
       final apiService = context.read<ApiService>();
 
-      if (authService.token == null) return;
-
-      final url = await apiService.getAppleCalendarUrl(authService.token!, widget.sessionId);
+      final url = apiService.getAppleCalendarUrl(widget.sessionId);
 
       if (await canLaunchUrl(Uri.parse(url))) {
         await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
@@ -812,12 +806,9 @@ class _MovieSessionScreenState extends State<MovieSessionScreen> {
 
   Future<void> _downloadICS() async {
     try {
-      final authService = context.read<AuthService>();
       final apiService = context.read<ApiService>();
 
-      if (authService.token == null) return;
-
-      final url = await apiService.getICSDownloadUrl(authService.token!, widget.sessionId);
+      final url = apiService.getIcsUrl(widget.sessionId);
 
       if (await canLaunchUrl(Uri.parse(url))) {
         await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
