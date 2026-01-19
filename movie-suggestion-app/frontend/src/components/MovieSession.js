@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import MovieSearch from './MovieSearch';
 
 function MovieSession({ user }) {
   const { sessionId } = useParams();
@@ -9,7 +10,7 @@ function MovieSession({ user }) {
   const [session, setSession] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
   const [reviews, setReviews] = useState([]);
-  const [movieTitle, setMovieTitle] = useState('');
+  const [selectedMovie, setSelectedMovie] = useState(null);
   const [watchDate, setWatchDate] = useState('');
   const [videoFile, setVideoFile] = useState(null);
   const [error, setError] = useState('');
@@ -54,10 +55,22 @@ function MovieSession({ user }) {
     setError('');
     setSuccess('');
 
+    if (!selectedMovie) {
+      setError('Please select a movie from the search results');
+      return;
+    }
+
     try {
-      await axios.post(`/api/sessions/${sessionId}/suggestions`, { movieTitle });
+      await axios.post(`/api/sessions/${sessionId}/suggestions`, {
+        movieTitle: selectedMovie.title,
+        tmdbId: selectedMovie.tmdb_id,
+        posterUrl: selectedMovie.poster_url,
+        releaseYear: selectedMovie.release_year,
+        voteAverage: selectedMovie.vote_average,
+        overview: selectedMovie.overview
+      });
       setSuccess('Movie suggestion submitted!');
-      setMovieTitle('');
+      setSelectedMovie(null);
       loadSuggestions();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to submit suggestion');
@@ -208,16 +221,49 @@ function MovieSession({ user }) {
           {!userHasSuggested ? (
             <form onSubmit={handleSubmitSuggestion}>
               <div className="form-group">
-                <label>Movie Title</label>
-                <input
-                  type="text"
-                  value={movieTitle}
-                  onChange={(e) => setMovieTitle(e.target.value)}
-                  placeholder="Enter a movie title"
-                  required
+                <label>Search for a Movie</label>
+                <MovieSearch
+                  onSelectMovie={setSelectedMovie}
+                  placeholder="Type to search movies..."
                 />
+                {selectedMovie && (
+                  <div style={{
+                    marginTop: '15px',
+                    padding: '15px',
+                    background: '#e3f2fd',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '15px'
+                  }}>
+                    {selectedMovie.poster_url && (
+                      <img
+                        src={selectedMovie.poster_url}
+                        alt={selectedMovie.title}
+                        style={{ width: '60px', height: '90px', borderRadius: '4px' }}
+                      />
+                    )}
+                    <div>
+                      <strong style={{ fontSize: '16px' }}>{selectedMovie.title}</strong>
+                      {selectedMovie.release_year && (
+                        <span style={{ color: '#666', marginLeft: '8px' }}>({selectedMovie.release_year})</span>
+                      )}
+                      {selectedMovie.vote_average > 0 && (
+                        <div style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>
+                          ⭐ {selectedMovie.vote_average.toFixed(1)}/10
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
-              <button type="submit" className="btn btn-primary">Submit Suggestion</button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={!selectedMovie}
+              >
+                Submit Suggestion
+              </button>
             </form>
           ) : (
             <div className="success">You have already submitted a suggestion!</div>

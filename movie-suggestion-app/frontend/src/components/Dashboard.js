@@ -4,15 +4,17 @@ import axios from 'axios';
 
 function Dashboard({ user, onLogout }) {
   const [groups, setGroups] = useState([]);
+  const [pendingRequests, setPendingRequests] = useState([]);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [groupName, setGroupName] = useState('');
-  const [joinGroupId, setJoinGroupId] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
     loadGroups();
+    loadPendingRequests();
   }, []);
 
   const loadGroups = async () => {
@@ -21,6 +23,22 @@ function Dashboard({ user, onLogout }) {
       setGroups(response.data);
     } catch (err) {
       setError('Failed to load groups');
+    }
+  };
+
+  const loadPendingRequests = async () => {
+    try {
+      // Load pending requests for all groups where user is leader
+      const allPending = [];
+      for (const group of groups) {
+        if (group.is_leader) {
+          const response = await axios.get(`/api/groups/${group.id}/pending`);
+          allPending.push(...response.data.map(req => ({ ...req, groupId: group.id, groupName: group.name })));
+        }
+      }
+      setPendingRequests(allPending);
+    } catch (err) {
+      console.error('Failed to load pending requests');
     }
   };
 
@@ -46,13 +64,39 @@ function Dashboard({ user, onLogout }) {
     setSuccess('');
 
     try {
-      await axios.post(`/api/groups/${joinGroupId}/join`);
-      setSuccess('Joined group successfully!');
-      setJoinGroupId('');
-      loadGroups();
+      await axios.post(`/api/groups/join`, { inviteCode });
+      setSuccess('Join request sent! Wait for leader approval.');
+      setInviteCode('');
+      setTimeout(() => loadGroups(), 1000);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to join group');
     }
+  };
+
+  const handleApproveMember = async (groupId, userId) => {
+    try {
+      await axios.post(`/api/groups/${groupId}/approve/${userId}`);
+      setSuccess('Member approved!');
+      loadPendingRequests();
+    } catch (err) {
+      setError('Failed to approve member');
+    }
+  };
+
+  const handleDenyMember = async (groupId, userId) => {
+    try {
+      await axios.post(`/api/groups/${groupId}/deny/${userId}`);
+      setSuccess('Member denied');
+      loadPendingRequests();
+    } catch (err) {
+      setError('Failed to deny member');
+    }
+  };
+
+  const handleCopyInviteCode = (code) => {
+    navigator.clipboard.writeText(code);
+    setSuccess('Invite code copied to clipboard!');
+    setTimeout(() => setSuccess(''), 2000);
   };
 
   const handleGroupClick = async (groupId) => {
@@ -127,18 +171,62 @@ function Dashboard({ user, onLogout }) {
         <div className="card" style={{ background: '#f8f9fa', marginBottom: '20px' }}>
           <form onSubmit={handleJoinGroup}>
             <div className="form-group">
-              <label>Join Existing Group (Enter Group ID)</label>
+              <label>Join Existing Group (Enter Invite Code)</label>
               <input
-                type="number"
-                value={joinGroupId}
-                onChange={(e) => setJoinGroupId(e.target.value)}
-                placeholder="Enter group ID to join"
+                type="text"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                placeholder="Enter 8-character invite code"
+                maxLength="8"
                 required
               />
+              <p style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
+                Get an invite code from a group leader
+              </p>
             </div>
-            <button type="submit" className="btn btn-success">Join Group</button>
+            <button type="submit" className="btn btn-success">Request to Join</button>
           </form>
         </div>
+
+        {pendingRequests.length > 0 && (
+          <div className="card" style={{ background: '#fff3cd', marginBottom: '20px' }}>
+            <h3>Pending Member Requests</h3>
+            {pendingRequests.map((request) => (
+              <div key={`${request.groupId}-${request.user_id}`} style={{
+                padding: '15px',
+                background: 'white',
+                borderRadius: '8px',
+                marginBottom: '10px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <div>
+                  <strong>{request.username}</strong> wants to join <strong>{request.groupName}</strong>
+                  <p style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
+                    Requested: {new Date(request.requested_at).toLocaleString()}
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    onClick={() => handleApproveMember(request.groupId, request.user_id)}
+                    className="btn btn-success"
+                    style={{ padding: '5px 15px', fontSize: '14px' }}
+                  >
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => handleDenyMember(request.groupId, request.user_id)}
+                    className="btn btn-secondary"
+                    style={{ padding: '5px 15px', fontSize: '14px' }}
+                  >
+                    Deny
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {groups.length === 0 ? (
           <p style={{ textAlign: 'center', color: '#666', marginTop: '20px' }}>
@@ -151,12 +239,38 @@ function Dashboard({ user, onLogout }) {
                 key={group.id}
                 className="group-card"
                 onClick={() => handleGroupClick(group.id)}
+                style={{ cursor: 'pointer' }}
               >
                 <h3>{group.name}</h3>
                 <p style={{ fontSize: '14px', color: '#666', marginTop: '10px' }}>
-                  Group ID: {group.id}
+                  {group.member_count || 1} member(s)
+                  {group.is_leader && <span style={{ marginLeft: '10px', color: '#28a745' }}>• Leader</span>}
                 </p>
-                <p style={{ fontSize: '14px', color: '#666' }}>
+                {group.invite_code && (
+                  <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <code style={{
+                      padding: '5px 10px',
+                      background: '#e9ecef',
+                      borderRadius: '4px',
+                      fontSize: '16px',
+                      fontWeight: 'bold',
+                      letterSpacing: '2px'
+                    }}>
+                      {group.invite_code}
+                    </code>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCopyInviteCode(group.invite_code);
+                      }}
+                      className="btn btn-secondary"
+                      style={{ padding: '5px 10px', fontSize: '12px' }}
+                    >
+                      Copy Code
+                    </button>
+                  </div>
+                )}
+                <p style={{ fontSize: '14px', color: '#666', marginTop: '10px' }}>
                   Click to start or continue session
                 </p>
               </div>
