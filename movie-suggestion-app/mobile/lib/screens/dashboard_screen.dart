@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
@@ -17,18 +18,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String? _errorMessage;
   final _groupNameController = TextEditingController();
   final _joinInviteCodeController = TextEditingController();
+  int _unreadCount = 0;
+  Timer? _notificationTimer;
 
   @override
   void initState() {
     super.initState();
     _loadGroups();
+    _loadUnreadCount();
+    // Poll for notifications every 10 seconds
+    _notificationTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      _loadUnreadCount();
+    });
   }
 
   @override
   void dispose() {
     _groupNameController.dispose();
     _joinInviteCodeController.dispose();
+    _notificationTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _loadUnreadCount() async {
+    try {
+      final authService = context.read<AuthService>();
+      final apiService = context.read<ApiService>();
+
+      if (authService.token == null) return;
+
+      final count = await apiService.getUnreadCount(authService.token!);
+
+      if (mounted) {
+        setState(() {
+          _unreadCount = count;
+        });
+      }
+    } catch (e) {
+      // Silently fail for unread count polling
+      // Don't show error messages for background polling
+    }
   }
 
   Future<void> _loadGroups() async {
@@ -204,6 +233,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: Text('Welcome, ${authService.user?.username ?? "User"}!'),
         actions: [
+          // Notification bell with badge
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications),
+                onPressed: () async {
+                  await Navigator.of(context).pushNamed('/notifications');
+                  // Reload unread count after returning from notifications screen
+                  _loadUnreadCount();
+                },
+              ),
+              if (_unreadCount > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 20,
+                      minHeight: 20,
+                    ),
+                    child: Text(
+                      _unreadCount > 99 ? '99+' : _unreadCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () {
