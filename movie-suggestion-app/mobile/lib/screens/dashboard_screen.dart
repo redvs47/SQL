@@ -16,7 +16,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   final _groupNameController = TextEditingController();
-  final _joinGroupIdController = TextEditingController();
+  final _joinInviteCodeController = TextEditingController();
 
   @override
   void initState() {
@@ -27,7 +27,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void dispose() {
     _groupNameController.dispose();
-    _joinGroupIdController.dispose();
+    _joinInviteCodeController.dispose();
     super.dispose();
   }
 
@@ -89,13 +89,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final authService = context.read<AuthService>();
       final apiService = context.read<ApiService>();
 
-      await apiService.createGroup(authService.token!, name);
+      final group = await apiService.createGroup(authService.token!, name);
 
       _groupNameController.clear();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Group created successfully!')),
+          SnackBar(
+            content: Text('Group created! Invite code: ${group.inviteCode ?? "N/A"}'),
+            duration: const Duration(seconds: 5),
+          ),
         );
         _loadGroups();
       }
@@ -109,17 +112,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _joinGroup() async {
-    final groupIdStr = await showDialog<String>(
+    final inviteCode = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Join Existing Group'),
         content: TextField(
-          controller: _joinGroupIdController,
+          controller: _joinInviteCodeController,
           decoration: const InputDecoration(
-            labelText: 'Group ID',
-            hintText: 'Enter group ID',
+            labelText: 'Invite Code',
+            hintText: 'Enter 8-character invite code',
           ),
-          keyboardType: TextInputType.number,
+          textCapitalization: TextCapitalization.characters,
+          maxLength: 8,
           autofocus: true,
         ),
         actions: [
@@ -129,7 +133,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(context, _joinGroupIdController.text);
+              Navigator.pop(context, _joinInviteCodeController.text);
             },
             child: const Text('Join'),
           ),
@@ -137,12 +141,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
 
-    if (groupIdStr == null || groupIdStr.isEmpty) return;
+    if (inviteCode == null || inviteCode.isEmpty) return;
 
-    final groupId = int.tryParse(groupIdStr);
-    if (groupId == null) {
+    if (inviteCode.length != 8) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid group ID')),
+        const SnackBar(content: Text('Invite code must be 8 characters')),
       );
       return;
     }
@@ -151,13 +154,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final authService = context.read<AuthService>();
       final apiService = context.read<ApiService>();
 
-      await apiService.joinGroup(authService.token!, groupId);
+      await apiService.joinGroup(authService.token!, inviteCode.toUpperCase());
 
-      _joinGroupIdController.clear();
+      _joinInviteCodeController.clear();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Joined group successfully!')),
+          const SnackBar(content: Text('Join request sent! Waiting for approval.')),
         );
         _loadGroups();
       }
@@ -273,7 +276,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              subtitle: Text('Group ID: ${group.id}'),
+                              subtitle: Text(
+                                'Invite Code: ${group.inviteCode ?? "N/A"}\n${group.memberCount ?? 0} member(s)',
+                              ),
                               trailing: const Icon(Icons.arrow_forward_ios),
                               onTap: () => _openGroup(group),
                             ),

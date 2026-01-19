@@ -94,9 +94,9 @@ class ApiService {
     }
   }
 
-  Future<void> joinGroup(String token, int groupId) async {
+  Future<void> joinGroup(String token, String inviteCode) async {
     final response = await http.post(
-      Uri.parse('$baseUrl/groups/$groupId/join'),
+      Uri.parse('$baseUrl/groups/join/$inviteCode'),
       headers: _headers(token),
     );
 
