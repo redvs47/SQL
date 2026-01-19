@@ -27,9 +27,11 @@ class VideoReview {
   }
 
   String get videoUrl {
-    // Adjust this URL to match your backend server
-    return 'http://10.0.2.2:3001$videoPath'; // For Android emulator
-    // For iOS simulator use: http://localhost:3001$videoPath
-    // For physical device use: http://YOUR_IP:3001$videoPath
+    // Use the same base URL configuration as ApiService
+    // For Android emulator: http://10.0.2.2:3001
+    // For iOS simulator: http://localhost:3001
+    // For physical device: http://YOUR_IP:3001
+    const String baseUrl = 'http://10.0.2.2:3001';
+    return '$baseUrl$videoPath';
   }
 }

@@ -207,16 +207,16 @@ class ApiService {
     }
   }
 
-  Future<void> setWatchDate(String token, int sessionId, String date) async {
+  Future<void> markWatched(String token, int sessionId, String date) async {
     final response = await http.post(
-      Uri.parse('$baseUrl/sessions/$sessionId/watch-date'),
+      Uri.parse('$baseUrl/sessions/$sessionId/mark-watched'),
       headers: _headers(token),
       body: json.encode({'watchDate': date}),
     );
 
     if (response.statusCode != 200) {
       final error = json.decode(response.body);
-      throw Exception(error['error'] ?? 'Failed to set watch date');
+      throw Exception(error['error'] ?? 'Failed to mark as watched');
     }
   }
 

@@ -167,12 +167,12 @@ class _MovieSessionScreenState extends State<MovieSessionScreen> {
     }
   }
 
-  Future<void> _setWatchDate() async {
+  Future<void> _markWatched() async {
     final date = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now(),
     );
 
     if (date == null) return;
@@ -183,7 +183,7 @@ class _MovieSessionScreenState extends State<MovieSessionScreen> {
 
       final dateStr = DateFormat('yyyy-MM-dd').format(date);
 
-      await apiService.setWatchDate(
+      await apiService.markWatched(
         authService.token!,
         widget.sessionId,
         dateStr,
@@ -191,7 +191,7 @@ class _MovieSessionScreenState extends State<MovieSessionScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Watch date set!')),
+          const SnackBar(content: Text('Marked as watched!')),
         );
         _loadSession();
       }
@@ -400,7 +400,7 @@ class _MovieSessionScreenState extends State<MovieSessionScreen> {
                           ),
                         ],
 
-                        // Step 2: Set Watch Date
+                        // Step 2: Mark as Watched
                         if (_session?.status == 'movie_selected' && _session?.watchDate == null) ...[
                           Card(
                             child: Padding(
@@ -409,19 +409,19 @@ class _MovieSessionScreenState extends State<MovieSessionScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   Text(
-                                    'Set Watch Date',
+                                    'Mark as Watched',
                                     style: Theme.of(context).textTheme.titleLarge,
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    'When will you watch "${_session?.selectedMovieTitle}"?',
+                                    'When did you watch "${_session?.selectedMovieTitle}"?',
                                     style: TextStyle(color: Colors.grey[600]),
                                   ),
                                   const SizedBox(height: 16),
                                   ElevatedButton.icon(
-                                    onPressed: _setWatchDate,
-                                    icon: const Icon(Icons.calendar_today),
-                                    label: const Text('Select Watch Date'),
+                                    onPressed: _markWatched,
+                                    icon: const Icon(Icons.check_circle),
+                                    label: const Text('Mark as Watched'),
                                   ),
                                 ],
                               ),

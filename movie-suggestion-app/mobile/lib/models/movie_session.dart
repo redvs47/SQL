@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 class MovieSession {
   final int id;
   final int groupId;
