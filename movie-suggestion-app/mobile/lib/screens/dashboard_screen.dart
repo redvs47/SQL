@@ -85,10 +85,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     if (name == null || name.isEmpty) return;
 
-    try {
-      final authService = context.read<AuthService>();
-      final apiService = context.read<ApiService>();
+    if (!mounted) return;
+    final authService = context.read<AuthService>();
+    final apiService = context.read<ApiService>();
 
+    try {
       await apiService.createGroup(authService.token!, name);
 
       _groupNameController.clear();
@@ -141,16 +142,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final groupId = int.tryParse(groupIdStr);
     if (groupId == null) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Invalid group ID')),
       );
       return;
     }
 
-    try {
-      final authService = context.read<AuthService>();
-      final apiService = context.read<ApiService>();
+    if (!mounted) return;
+    final authService = context.read<AuthService>();
+    final apiService = context.read<ApiService>();
 
+    try {
       await apiService.joinGroup(authService.token!, groupId);
 
       _joinGroupIdController.clear();
@@ -177,9 +180,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       var session = await apiService.getActiveSession(authService.token!, group.id);
 
-      if (session == null) {
-        session = await apiService.createSession(authService.token!, group.id);
-      }
+      session ??= await apiService.createSession(authService.token!, group.id);
 
       if (mounted) {
         Navigator.of(context).pushNamed('/session/${session.id}');

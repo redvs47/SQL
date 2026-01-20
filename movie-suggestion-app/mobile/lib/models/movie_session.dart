@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 class MovieSession {
   final int id;
   final int groupId;

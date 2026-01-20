@@ -63,9 +63,14 @@ function Dashboard({ user, onLogout }) {
     setError('');
     setSuccess('');
 
+    if (!inviteCode.trim()) {
+      setError('Please enter an invite code');
+      return;
+    }
+
     try {
-      await axios.post(`/api/groups/join`, { inviteCode });
-      setSuccess('Join request sent! Wait for leader approval.');
+      const response = await axios.post(`/api/groups/join/${inviteCode.trim().toUpperCase()}`);
+      setSuccess(response.data.message || 'Join request sent! Wait for leader approval.');
       setInviteCode('');
       setTimeout(() => loadGroups(), 1000);
     } catch (err) {
@@ -178,6 +183,7 @@ function Dashboard({ user, onLogout }) {
                 onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
                 placeholder="Enter 8-character invite code"
                 maxLength="8"
+                style={{ textTransform: 'uppercase' }}
                 required
               />
               <p style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>

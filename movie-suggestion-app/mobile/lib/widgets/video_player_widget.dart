@@ -74,16 +74,16 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
             children: [
               const Icon(Icons.error, color: Colors.white, size: 48),
               const SizedBox(height: 8),
-              Text(
+              const Text(
                 'Error loading video',
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(color: Colors.white),
               ),
               if (_errorMessage != null)
                 Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: Text(
                     _errorMessage!,
-                    style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -121,7 +121,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                 });
               },
               child: Container(
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withValues(alpha: 0.3),
                 child: const Center(
                   child: Icon(
                     Icons.play_circle_outline,
@@ -143,7 +143,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
                   colors: [
-                    Colors.black.withOpacity(0.7),
+                    Colors.black.withValues(alpha: 0.7),
                     Colors.transparent,
                   ],
                 ),
@@ -182,7 +182,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                             _controller.seekTo(Duration(seconds: value.toInt()));
                           },
                           activeColor: Colors.white,
-                          inactiveColor: Colors.white.withOpacity(0.3),
+                          inactiveColor: Colors.white.withValues(alpha: 0.3),
                         ),
                       ),
                       Text(

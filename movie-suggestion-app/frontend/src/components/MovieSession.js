@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import MovieSearch from './MovieSearch';
@@ -17,38 +17,38 @@ function MovieSession({ user }) {
   const [success, setSuccess] = useState('');
   const [uploading, setUploading] = useState(false);
 
-  useEffect(() => {
-    loadSession();
-    loadSuggestions();
-    loadReviews();
-  }, [sessionId]);
-
-  const loadSession = async () => {
+  const loadSession = useCallback(async () => {
     try {
       const response = await axios.get(`/api/sessions/${sessionId}`);
       setSession(response.data);
     } catch (err) {
       setError('Failed to load session');
     }
-  };
+  }, [sessionId]);
 
-  const loadSuggestions = async () => {
+  const loadSuggestions = useCallback(async () => {
     try {
       const response = await axios.get(`/api/sessions/${sessionId}/suggestions`);
       setSuggestions(response.data);
     } catch (err) {
       console.error('Failed to load suggestions');
     }
-  };
+  }, [sessionId]);
 
-  const loadReviews = async () => {
+  const loadReviews = useCallback(async () => {
     try {
       const response = await axios.get(`/api/sessions/${sessionId}/reviews`);
       setReviews(response.data);
     } catch (err) {
       console.error('Failed to load reviews');
     }
-  };
+  }, [sessionId]);
+
+  useEffect(() => {
+    loadSession();
+    loadSuggestions();
+    loadReviews();
+  }, [loadSession, loadSuggestions, loadReviews]);
 
   const handleSubmitSuggestion = async (e) => {
     e.preventDefault();

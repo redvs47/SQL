@@ -26,7 +26,6 @@ class _MovieSessionScreenState extends State<MovieSessionScreen> {
   String? _errorMessage;
 
   final _movieTitleController = TextEditingController();
-  DateTime? _selectedDate;
 
   @override
   void initState() {
@@ -177,10 +176,11 @@ class _MovieSessionScreenState extends State<MovieSessionScreen> {
 
     if (date == null) return;
 
-    try {
-      final authService = context.read<AuthService>();
-      final apiService = context.read<ApiService>();
+    if (!mounted) return;
+    final authService = context.read<AuthService>();
+    final apiService = context.read<ApiService>();
 
+    try {
       final dateStr = DateFormat('yyyy-MM-dd').format(date);
 
       await apiService.setWatchDate(

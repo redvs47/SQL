@@ -7,6 +7,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const rateLimit = require('express-rate-limit');
 const db = require('./database');
 const { authenticateToken } = require('./middleware/auth');
 const tmdbService = require('./services/tmdbService');
@@ -16,9 +17,28 @@ const calendarService = require('./services/calendarService');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Rate limiting for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Limit each IP to 10 requests per windowMs
+  message: { error: 'Too many attempts, please try again after 15 minutes' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// General API rate limiting
+const apiLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 100, // Limit each IP to 100 requests per minute
+  message: { error: 'Too many requests, please slow down' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use('/api/', apiLimiter);
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Configure multer for video uploads
@@ -57,6 +77,36 @@ function generateInviteCode() {
   return crypto.randomBytes(4).toString('hex').toUpperCase();
 }
 
+// Input validation helpers
+function validateEmail(email) {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+function validatePassword(password) {
+  // Minimum 8 characters, at least one letter and one number
+  if (password.length < 8) {
+    return { valid: false, error: 'Password must be at least 8 characters long' };
+  }
+  if (!/[a-zA-Z]/.test(password)) {
+    return { valid: false, error: 'Password must contain at least one letter' };
+  }
+  if (!/[0-9]/.test(password)) {
+    return { valid: false, error: 'Password must contain at least one number' };
+  }
+  return { valid: true };
+}
+
+function validateUsername(username) {
+  if (username.length < 3 || username.length > 30) {
+    return { valid: false, error: 'Username must be between 3 and 30 characters' };
+  }
+  if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+    return { valid: false, error: 'Username can only contain letters, numbers, and underscores' };
+  }
+  return { valid: true };
+}
+
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({ message: 'Movie Suggestion App API', version: '1.0.0' });
@@ -64,11 +114,28 @@ app.get('/', (req, res) => {
 
 // ==================== AUTH ROUTES ====================
 
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', authLimiter, async (req, res) => {
   const { username, email, password } = req.body;
 
   if (!username || !email || !password) {
     return res.status(400).json({ error: 'All fields are required' });
+  }
+
+  // Validate username
+  const usernameValidation = validateUsername(username);
+  if (!usernameValidation.valid) {
+    return res.status(400).json({ error: usernameValidation.error });
+  }
+
+  // Validate email
+  if (!validateEmail(email)) {
+    return res.status(400).json({ error: 'Invalid email format' });
+  }
+
+  // Validate password
+  const passwordValidation = validatePassword(password);
+  if (!passwordValidation.valid) {
+    return res.status(400).json({ error: passwordValidation.error });
   }
 
   try {
@@ -103,7 +170,7 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', authLimiter, (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
@@ -188,6 +255,11 @@ app.get('/api/tmdb/movie/:tmdbId/providers', authenticateToken, async (req, res)
 app.post('/api/groups', authenticateToken, (req, res) => {
   const { name, watchModel } = req.body;
   const userId = req.user.id;
+
+  // Validate group name
+  if (!name || name.trim().length < 2 || name.trim().length > 50) {
+    return res.status(400).json({ error: 'Group name must be between 2 and 50 characters' });
+  }
 
   const inviteCode = generateInviteCode();
   const defaultWatchModel = watchModel || 'solo';

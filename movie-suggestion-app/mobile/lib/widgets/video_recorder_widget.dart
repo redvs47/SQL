@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as path;
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
 
@@ -78,12 +76,6 @@ class _VideoRecorderWidgetState extends State<VideoRecorderWidget> {
     }
 
     try {
-      final directory = await getTemporaryDirectory();
-      final filePath = path.join(
-        directory.path,
-        '${DateTime.now().millisecondsSinceEpoch}.mp4',
-      );
-
       await _cameraController!.startVideoRecording();
 
       setState(() {
@@ -226,7 +218,7 @@ class _VideoRecorderWidgetState extends State<VideoRecorderWidget> {
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(
+                                    const Icon(
                                       Icons.error_outline,
                                       size: 64,
                                       color: Colors.red,
@@ -280,7 +272,7 @@ class _VideoRecorderWidgetState extends State<VideoRecorderWidget> {
                                                 Text(
                                                   ' / 03:00',
                                                   style: TextStyle(
-                                                    color: Colors.white.withOpacity(0.7),
+                                                    color: Colors.white.withValues(alpha: 0.7),
                                                   ),
                                                 ),
                                               ],
@@ -294,7 +286,7 @@ class _VideoRecorderWidgetState extends State<VideoRecorderWidget> {
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.8),
+                    color: Colors.black.withValues(alpha: 0.8),
                   ),
                   child: SafeArea(
                     top: false,
@@ -304,7 +296,7 @@ class _VideoRecorderWidgetState extends State<VideoRecorderWidget> {
                           Text(
                             'Maximum video length: 3 minutes',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.7),
+                              color: Colors.white.withValues(alpha: 0.7),
                             ),
                           ),
                         const SizedBox(height: 16),

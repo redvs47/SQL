@@ -1,19 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
-import 'package:http/http.dart';
-import '../models/user.dart';
+import '../config/app_config.dart';
 import '../models/group.dart';
 import '../models/movie_session.dart';
 import '../models/movie_suggestion.dart';
 import '../models/video_review.dart';
 
 class ApiService {
-  // Change this to your backend URL
-  // For Android emulator: http://10.0.2.2:3001
-  // For iOS simulator: http://localhost:3001
-  // For physical device: http://YOUR_IP_ADDRESS:3001
-  static const String baseUrl = 'http://10.0.2.2:3001/api';
+  // API URL is now configured in lib/config/app_config.dart
+  static String get baseUrl => AppConfig.baseUrl;
 
   Map<String, String> _headers(String? token) {
     return {
